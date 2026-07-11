@@ -97,6 +97,9 @@ importers:
       '@hackathon/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      marked:
+        specifier: ^18.0.6
+        version: 18.0.6
       rxjs:
         specifier: ^7.8.1
         version: 7.8.2
@@ -3326,6 +3329,11 @@ packages:
   make-fetch-happen@15.0.6:
     resolution: {integrity: sha512-Je0fLJ0F5atA7F+eIlLzk+Wkcl57JDf4kf+EW8xiP5E31xOQxkIxTbgf1Oi1Lw9tRI9UEMRdI5Vz2xTzoNU1Jw==}
     engines: {node: ^20.17.0 || >=22.9.0}
+
+  marked@18.0.6:
+    resolution: {integrity: sha512-MrV5puXBfuiy6wl6DLaq3BtIJQAJToAd5zt/ZKhRfGRAuFPALE7/4Y7jnxRQoEgK/pBgurGqLyAuRgZ2xOjr6w==}
+    engines: {node: '>= 20'}
+    hasBin: true
 
   math-intrinsics@1.1.0:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
@@ -8153,6 +8161,8 @@ snapshots:
       ssri: 13.0.1
     transitivePeerDependencies:
       - supports-color
+
+  marked@18.0.6: {}
 
   math-intrinsics@1.1.0: {}
 

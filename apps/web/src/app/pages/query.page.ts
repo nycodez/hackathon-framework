@@ -6,10 +6,11 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router'
 import type { Conversation, DecisionTraceEvent } from '@hackathon/shared'
 import { distinctUntilChanged, finalize, map } from 'rxjs'
 import { ApiService } from '../core/api.service'
+import { MarkdownPipe } from '../core/markdown.pipe'
 
 @Component({
   standalone: true,
-  imports: [DatePipe, ReactiveFormsModule, RouterLink],
+  imports: [DatePipe, MarkdownPipe, ReactiveFormsModule, RouterLink],
   template: `
     <section class="page query-page" [class.is-resizing-console]="resizingConsole()" [style.--console-height]="consoleHeight() + 'px'">
       <header class="page-header compact-header">
@@ -41,7 +42,11 @@ import { ApiService } from '../core/api.service'
             <article class="message" [class.user-message]="message.role === 'user'">
               <span class="message-avatar">{{ message.role === 'user' ? 'You' : 'AI' }}</span>
               <div class="message-body">
-                <p>{{ message.content }}</p>
+                @if (message.role === 'user') {
+                  <p>{{ message.content }}</p>
+                } @else {
+                  <div class="markdown-content" [innerHTML]="message.content | markdown"></div>
+                }
                 @if (message.citations.length) {
                   <details class="citations">
                     <summary>{{ message.citations.length }} sources</summary>

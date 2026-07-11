@@ -101,6 +101,28 @@ a { color: inherit; }
 .message-body { padding-top: 5px; min-width: 0; }
 .message-body > p { margin: 0; white-space: pre-wrap; font-size: 14px; line-height: 1.75; }
 .user-message .message-body > p { color: #4d474a; }
+.markdown-content { overflow-wrap: anywhere; font-size: 14px; line-height: 1.7; }
+.markdown-content > :first-child { margin-top: 0; }
+.markdown-content > :last-child { margin-bottom: 0; }
+.markdown-content h1, .markdown-content h2, .markdown-content h3, .markdown-content h4 { margin: 1.25em 0 .45em; color: #292529; line-height: 1.3; font-weight: 600; }
+.markdown-content h1 { font-size: 22px; }
+.markdown-content h2 { font-size: 19px; }
+.markdown-content h3 { font-size: 16px; }
+.markdown-content h4 { font-size: 14px; }
+.markdown-content p { margin: 0 0 .9em; }
+.markdown-content ul, .markdown-content ol { margin: .25em 0 1em; padding-left: 1.4rem; }
+.markdown-content li { padding-left: .2rem; }
+.markdown-content li + li { margin-top: .35em; }
+.markdown-content strong { font-weight: 650; }
+.markdown-content a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+.markdown-content blockquote { margin: 1em 0; padding: .1em 1em; border-left: 3px solid #d4b8c5; color: #655c61; background: #faf7f9; }
+.markdown-content code { padding: .12em .35em; border-radius: 5px; background: #eee9ec; font: .88em ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+.markdown-content pre { max-width: 100%; margin: 1em 0; padding: 14px; overflow-x: auto; border-radius: 10px; color: #f4eef1; background: #241d21; }
+.markdown-content pre code { padding: 0; color: inherit; background: transparent; }
+.markdown-content table { width: 100%; margin: 1em 0; border-collapse: collapse; display: block; overflow-x: auto; }
+.markdown-content th, .markdown-content td { padding: 8px 10px; border: 1px solid var(--border); text-align: left; white-space: nowrap; }
+.markdown-content th { background: #f7f4f6; font-weight: 600; }
+.markdown-content hr { margin: 1.4em 0; border: 0; border-top: 1px solid var(--border); }
 .typing { color: var(--muted); font-size: 13px; }
 .citations { margin-top: 16px; }
 .citations summary { color: var(--accent); cursor: pointer; font-size: 11px; font-weight: 600; }
