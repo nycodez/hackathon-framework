@@ -99,8 +99,8 @@ export default class BedrockLlmService {
     try {
       const response = await this.getClient().send(command, { abortSignal: controller.signal })
       const text = (response.output?.message?.content ?? [])
-        .map((block) => 'text' in block ? block.text : undefined)
-        .filter((value): value is string => Boolean(value))
+        .map((block: unknown) => getTextBlock(block))
+        .filter((value: string | undefined): value is string => Boolean(value))
         .join('\n')
         .trim()
       if (!text) throw new Error('Bedrock returned an empty response')
@@ -116,6 +116,11 @@ export default class BedrockLlmService {
     })
     return this.client
   }
+}
+
+function getTextBlock(block: unknown): string | undefined {
+  if (typeof block !== 'object' || block === null || !('text' in block)) return undefined
+  return typeof block.text === 'string' ? block.text : undefined
 }
 
 function buildContext(matches: SearchMatch[], limit: number): { text: string; characters: number; passages: number } {

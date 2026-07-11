@@ -1,5 +1,5 @@
 import cors from 'cors'
-import express, { type ErrorRequestHandler } from 'express'
+import express, { type ErrorRequestHandler, type NextFunction, type Request, type Response } from 'express'
 import multer from 'multer'
 import { optionalEnv } from './config/env.js'
 import apiRoutes from './routes/api.routes.js'
@@ -16,7 +16,12 @@ app.use((_req, res) => res.status(404).json({
   errors: [{ rule: 'route', field: 'path', message: 'Route not found' }],
 }))
 
-const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
+const errorHandler: ErrorRequestHandler = (
+  error: unknown,
+  _req: Request,
+  res: Response,
+  _next: NextFunction,
+) => {
   console.error(error)
   if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
     return res.status(413).json({
@@ -33,4 +38,3 @@ const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
 app.use(errorHandler)
 
 export default app
-
