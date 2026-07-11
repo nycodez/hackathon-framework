@@ -1,7 +1,7 @@
-import pdfParse from 'pdf-parse'
 import type { KnowledgeDocument } from '@hackathon/shared'
 import { optionalEnv } from '../config/env.js'
 import DocumentsRepository, { type StoredDocument } from '../repositories/documents_repository.js'
+import { extractPdfText } from './pdf_text_service.js'
 import { embedText } from './vector_service.js'
 
 const textMimeTypes = new Set([
@@ -67,8 +67,7 @@ async function extractText(document: StoredDocument): Promise<{ text: string; re
 
   if (document.mimeType === 'application/pdf' || document.name.toLowerCase().endsWith('.pdf')) {
     try {
-      const result = await pdfParse(document.rawData)
-      const text = result.text.trim()
+      const text = (await extractPdfText(document.rawData)).trim()
       return { text, requiresOcr: text.length < 40 }
     } catch {
       return { text: '', requiresOcr: true }
