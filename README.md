@@ -8,6 +8,7 @@ A clean Angular + Express starter for document-grounded hackathon products. It d
 - Chat-style Query page with a bottom composer and source citations
 - Read-only Decision Console with persisted, observable retrieval and response-policy events
 - Durable, resumable conversation sessions on the Results page
+- Nested Library folders with breadcrumb navigation and folder-aware uploads
 - Small-file upload with visible ingestion, OCR, summarization, chunking, and vectorization states
 - Express API packaged as a Vercel Function under `/api`
 - PostgreSQL migrations with workspace scoping, full-text search, `vector(1024)`, and HNSW indexing
@@ -102,6 +103,8 @@ Run migrations before opening the deployed application. Migrations are intention
 | `GET` | `/api/conversations` | Previous sessions |
 | `GET` | `/api/conversations/:id` | Resume a session |
 | `POST` | `/api/query` | Search the corpus and store a grounded exchange |
+| `GET` | `/api/library` | Current folder, breadcrumbs, child folders, and documents |
+| `POST` | `/api/library/folders` | Create a folder in the current workspace location |
 | `GET` | `/api/documents` | Corpus files and pipeline states |
 | `POST` | `/api/documents` | Ingest one multipart file |
 | `POST` | `/api/documents/:id/process` | Process or retry an ingested file |

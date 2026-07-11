@@ -98,4 +98,32 @@ export const migrations = [
         ADD COLUMN IF NOT EXISTS decision_trace jsonb NOT NULL DEFAULT '[]'::jsonb;
     `,
   },
+  {
+    id: '003_library_folders',
+    sql: `
+      CREATE TABLE IF NOT EXISTS library_folders (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        workspace_id text NOT NULL,
+        parent_id uuid REFERENCES library_folders(id) ON DELETE CASCADE,
+        name text NOT NULL CHECK (char_length(name) BETWEEN 1 AND 80),
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+
+      CREATE INDEX IF NOT EXISTS library_folders_parent_idx
+        ON library_folders (workspace_id, parent_id, name);
+      CREATE UNIQUE INDEX IF NOT EXISTS library_folders_unique_root_name_idx
+        ON library_folders (workspace_id, lower(name))
+        WHERE parent_id IS NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS library_folders_unique_child_name_idx
+        ON library_folders (workspace_id, parent_id, lower(name))
+        WHERE parent_id IS NOT NULL;
+
+      ALTER TABLE knowledge_documents
+        ADD COLUMN IF NOT EXISTS folder_id uuid REFERENCES library_folders(id) ON DELETE SET NULL;
+
+      CREATE INDEX IF NOT EXISTS knowledge_documents_folder_idx
+        ON knowledge_documents (workspace_id, folder_id, updated_at DESC);
+    `,
+  },
 ] as const

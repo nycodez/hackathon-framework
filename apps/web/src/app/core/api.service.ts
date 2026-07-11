@@ -8,6 +8,8 @@ import type {
   DashboardSummary,
   HealthSummary,
   KnowledgeDocument,
+  LibraryFolder,
+  LibraryListing,
 } from '@hackathon/shared'
 import { map, type Observable } from 'rxjs'
 
@@ -41,9 +43,23 @@ export class ApiService {
     return this.get<KnowledgeDocument[]>('/api/documents')
   }
 
-  upload(file: File): Observable<KnowledgeDocument> {
+  library(folderId: string | null): Observable<LibraryListing> {
+    const query = folderId ? `?folderId=${encodeURIComponent(folderId)}` : ''
+    return this.get<LibraryListing>(`/api/library${query}`)
+  }
+
+  createFolder(name: string, parentId: string | null): Observable<LibraryFolder> {
+    return this.unwrap(this.http.post<ApiEnvelope<LibraryFolder>>(
+      '/api/library/folders',
+      { name, parentId },
+      { headers: this.headers }
+    ))
+  }
+
+  upload(file: File, folderId: string | null = null): Observable<KnowledgeDocument> {
     const form = new FormData()
     form.append('file', file)
+    if (folderId) form.append('folderId', folderId)
     return this.unwrap(this.http.post<ApiEnvelope<KnowledgeDocument>>('/api/documents', form, { headers: this.headers }))
   }
 
@@ -72,4 +88,3 @@ export class ApiService {
     }))
   }
 }
-

@@ -73,6 +73,7 @@ export interface Conversation extends ConversationSummary {
 
 export interface KnowledgeDocument {
   id: string
+  folderId: string | null
   name: string
   mimeType: string
   sizeBytes: number
@@ -83,6 +84,20 @@ export interface KnowledgeDocument {
   errorMessage: string | null
   createdAt: string
   updatedAt: string
+}
+
+export interface LibraryFolder {
+  id: string
+  parentId: string | null
+  name: string
+  createdAt: string
+}
+
+export interface LibraryListing {
+  currentFolder: LibraryFolder | null
+  breadcrumbs: LibraryFolder[]
+  folders: LibraryFolder[]
+  documents: KnowledgeDocument[]
 }
 
 export interface AskResult {

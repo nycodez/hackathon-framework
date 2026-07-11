@@ -6,6 +6,7 @@ import { toVectorLiteral } from '../services/vector_service.js'
 
 interface DocumentRow extends QueryResultRow {
   id: string
+  folder_id: string | null
   name: string
   mime_type: string
   size_bytes: number
@@ -40,7 +41,7 @@ export interface StoredDocument extends KnowledgeDocument {
 }
 
 const documentSelect = `
-  SELECT d.id, d.name, d.mime_type, d.size_bytes, d.status, d.summary,
+  SELECT d.id, d.folder_id, d.name, d.mime_type, d.size_bytes, d.status, d.summary,
          d.requires_ocr, d.error_message, d.created_at, d.updated_at,
          count(c.id)::int AS chunk_count
   FROM knowledge_documents d
@@ -59,15 +60,30 @@ export default class DocumentsRepository {
     return result.rows.map(mapDocument)
   }
 
-  async ingest(workspaceId: string, file: Express.Multer.File): Promise<KnowledgeDocument> {
+  async listInFolder(workspaceId: string, folderId: string | null): Promise<KnowledgeDocument[]> {
+    const result = await query<DocumentRow>(
+      `${documentSelect}
+       WHERE d.workspace_id = $1 AND d.folder_id IS NOT DISTINCT FROM $2::uuid
+       GROUP BY d.id
+       ORDER BY d.updated_at DESC`,
+      [workspaceId, folderId]
+    )
+    return result.rows.map(mapDocument)
+  }
+
+  async ingest(workspaceId: string, file: Express.Multer.File, folderId: string | null = null): Promise<KnowledgeDocument> {
+    if (folderId) {
+      const folder = await query('SELECT id FROM library_folders WHERE workspace_id = $1 AND id = $2', [workspaceId, folderId])
+      if (!folder.rowCount) throw new Error('Folder not found')
+    }
     const checksum = createHash('sha256').update(file.buffer).digest('hex')
     await query(
       `INSERT INTO knowledge_documents (
-         workspace_id, name, mime_type, size_bytes, content_sha256, raw_data
-       ) VALUES ($1, $2, $3, $4, $5, $6)
+         workspace_id, name, mime_type, size_bytes, content_sha256, raw_data, folder_id
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (workspace_id, content_sha256)
-       DO UPDATE SET name = EXCLUDED.name, updated_at = now()`,
-      [workspaceId, file.originalname, file.mimetype || 'application/octet-stream', file.size, checksum, file.buffer]
+       DO UPDATE SET name = EXCLUDED.name, folder_id = EXCLUDED.folder_id, updated_at = now()`,
+      [workspaceId, file.originalname, file.mimetype || 'application/octet-stream', file.size, checksum, file.buffer, folderId]
     )
     const result = await query<DocumentRow>(
       `${documentSelect}
@@ -187,6 +203,7 @@ export default class DocumentsRepository {
 function mapDocument(row: DocumentRow): KnowledgeDocument {
   return {
     id: row.id,
+    folderId: row.folder_id,
     name: row.name,
     mimeType: row.mime_type,
     sizeBytes: row.size_bytes,

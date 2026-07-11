@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { query } from '../db/pool.js'
 import ConversationsRepository from '../repositories/conversations_repository.js'
 import DocumentsRepository from '../repositories/documents_repository.js'
+import LibraryRepository from '../repositories/library_repository.js'
 import ChatService from '../services/chat_service.js'
 import IngestionService from '../services/ingestion_service.js'
 import { VECTOR_DIMENSIONS } from '../services/vector_service.js'
@@ -11,6 +12,7 @@ import { workspaceId } from '../services/workspace_service.js'
 
 const router = Router()
 const documents = new DocumentsRepository()
+const library = new LibraryRepository(documents)
 const conversations = new ConversationsRepository()
 const ingestion = new IngestionService(documents)
 const chat = new ChatService(conversations, documents)
@@ -23,6 +25,14 @@ const idSchema = z.string().uuid()
 const askSchema = z.object({
   conversationId: z.string().uuid().optional(),
   message: z.string().trim().min(1).max(8_000),
+})
+const optionalFolderIdSchema = z.preprocess(
+  (value) => value === '' || value === undefined ? null : value,
+  z.string().uuid().nullable()
+)
+const createFolderSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  parentId: optionalFolderIdSchema.optional().default(null),
 })
 
 router.get('/health', async (_req, res) => {
@@ -100,10 +110,44 @@ router.get('/documents', asyncRoute(async (req, res) => {
   res.json({ success: true, data: await documents.list(workspaceId(req)) })
 }))
 
+router.get('/library', asyncRoute(async (req, res) => {
+  const parsed = optionalFolderIdSchema.safeParse(req.query.folderId)
+  if (!parsed.success) return res.status(400).json(validationError('folderId', 'A valid folder ID is required'))
+  const listing = await library.list(workspaceId(req), parsed.data)
+  if (!listing) return res.status(404).json(notFound('folder'))
+  return res.json({ success: true, data: listing })
+}))
+
+router.post('/library/folders', asyncRoute(async (req, res) => {
+  const parsed = createFolderSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json(validationError('folder', parsed.error.issues[0]?.message ?? 'Invalid folder'))
+  try {
+    const folder = await library.create(workspaceId(req), parsed.data.name, parsed.data.parentId)
+    return res.status(201).json({ success: true, data: folder })
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Folder not found') {
+      return res.status(404).json(notFound('folder'))
+    }
+    if (error instanceof Error && error.message === 'A folder with this name already exists here') {
+      return res.status(409).json({ success: false, errors: [{ rule: 'unique', field: 'name', message: error.message }] })
+    }
+    throw error
+  }
+}))
+
 router.post('/documents', upload.single('file'), asyncRoute(async (req, res) => {
   if (!req.file) return res.status(400).json(validationError('file', 'Choose one file to upload'))
-  const document = await documents.ingest(workspaceId(req), req.file)
-  return res.status(202).json({ success: true, data: document })
+  const parsed = optionalFolderIdSchema.safeParse(req.body.folderId)
+  if (!parsed.success) return res.status(400).json(validationError('folderId', 'A valid folder ID is required'))
+  try {
+    const document = await documents.ingest(workspaceId(req), req.file, parsed.data)
+    return res.status(202).json({ success: true, data: document })
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Folder not found') {
+      return res.status(404).json(notFound('folder'))
+    }
+    throw error
+  }
 }))
 
 router.post('/documents/:id/process', asyncRoute(async (req, res) => {
