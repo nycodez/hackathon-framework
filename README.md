@@ -79,6 +79,12 @@ Set these environment variables for Preview and Production:
 | `CORS_ORIGIN` | No | Only needed when the API is called from another origin |
 | `ANTHROPIC_API_KEY` | No | Enables OCR for scanned PDFs and images |
 | `ANTHROPIC_OCR_MODEL` | No | OCR-capable model override |
+| `LLM_PROVIDER` | Bedrock use | Set to `bedrock` |
+| `AWS_REGION` | Bedrock use | Bedrock region; local template uses `ap-southeast-1` |
+| `AWS_ACCESS_KEY_ID` | Vercel Bedrock use | IAM access key stored as a Vercel secret |
+| `AWS_SECRET_ACCESS_KEY` | Vercel Bedrock use | IAM secret key stored as a Vercel secret |
+| `AWS_SESSION_TOKEN` | Temporary credentials only | Session token for temporary AWS credentials |
+| `BEDROCK_MODEL_ID` | Bedrock use | Enabled Bedrock model or inference-profile ID |
 
 Run migrations before opening the deployed application. Migrations are intentionally not executed during request startup or every Vercel build.
 
