@@ -92,6 +92,14 @@ router.get('/conversations/:id', asyncRoute(async (req, res) => {
   return res.json({ success: true, data: conversation })
 }))
 
+router.delete('/conversations/:id', asyncRoute(async (req, res) => {
+  const parsed = idSchema.safeParse(req.params.id)
+  if (!parsed.success) return res.status(400).json(validationError('id', 'A valid conversation ID is required'))
+  const removed = await conversations.remove(workspaceId(req), parsed.data)
+  if (!removed) return res.status(404).json(notFound('conversation'))
+  return res.status(204).send()
+}))
+
 router.post('/query', asyncRoute(async (req, res) => {
   const parsed = askSchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json(validationError('message', parsed.error.issues[0]?.message ?? 'Invalid query'))

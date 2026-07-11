@@ -102,6 +102,7 @@ Run migrations before opening the deployed application. Migrations are intention
 | `GET` | `/api/dashboard` | Workspace counts |
 | `GET` | `/api/conversations` | Previous sessions |
 | `GET` | `/api/conversations/:id` | Resume a session |
+| `DELETE` | `/api/conversations/:id` | Delete a session and its messages |
 | `POST` | `/api/query` | Search the corpus and store a grounded exchange |
 | `GET` | `/api/library` | Current folder, breadcrumbs, child folders, and documents |
 | `POST` | `/api/library/folders` | Create a folder in the current workspace location |

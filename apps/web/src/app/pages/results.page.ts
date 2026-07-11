@@ -25,15 +25,18 @@ import { ApiService } from '../core/api.service'
       } @else {
         <div class="conversation-list">
           @for (conversation of conversations(); track conversation.id) {
-            <a class="conversation-card" [routerLink]="['/query', conversation.id]">
-              <div class="conversation-icon">◌</div>
-              <div class="conversation-copy">
-                <h2>{{ conversation.title }}</h2>
-                <p>{{ conversation.preview }}</p>
-                <small>{{ conversation.messageCount }} messages · Updated {{ conversation.updatedAt | date:'medium' }}</small>
-              </div>
-              <span class="resume">Resume →</span>
-            </a>
+            <article class="conversation-card">
+              <a class="conversation-main" [routerLink]="['/query', conversation.id]">
+                <div class="conversation-icon">◌</div>
+                <div class="conversation-copy">
+                  <h2>{{ conversation.title }}</h2>
+                  <p>{{ conversation.preview }}</p>
+                  <small>{{ conversation.messageCount }} messages · Updated {{ conversation.updatedAt | date:'medium' }}</small>
+                </div>
+                <span class="resume">Resume →</span>
+              </a>
+              <button class="conversation-delete" type="button" [disabled]="deletingId() === conversation.id" (click)="deleteConversation(conversation.id)" aria-label="Delete conversation">×</button>
+            </article>
           }
         </div>
       }
@@ -47,6 +50,7 @@ export class ResultsPage implements OnInit {
   protected readonly conversations = signal<ConversationSummary[]>([])
   protected readonly loading = signal(true)
   protected readonly error = signal('')
+  protected readonly deletingId = signal<string | null>(null)
 
   ngOnInit(): void {
     this.api.conversations().pipe(
@@ -57,5 +61,17 @@ export class ResultsPage implements OnInit {
       error: (error: unknown) => this.error.set(this.api.message(error)),
     })
   }
-}
 
+  protected deleteConversation(id: string): void {
+    if (this.deletingId()) return
+    this.deletingId.set(id)
+    this.error.set('')
+    this.api.deleteConversation(id).pipe(
+      takeUntilDestroyed(this.destroyRef),
+      finalize(() => this.deletingId.set(null))
+    ).subscribe({
+      next: () => this.conversations.update((conversations) => conversations.filter((conversation) => conversation.id !== id)),
+      error: (error: unknown) => this.error.set(this.api.message(error)),
+    })
+  }
+}

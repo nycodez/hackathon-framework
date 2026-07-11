@@ -159,8 +159,12 @@ a { color: inherit; }
 .console-event[data-outcome="guardrail"] .event-copy small, .console-event[data-outcome="no_match"] .event-copy small { color: #c99358; }
 
 .conversation-list { display: grid; gap: 12px; }
-.conversation-card { padding: 20px; border: 1px solid var(--border); border-radius: 14px; background: #fff; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 16px; align-items: center; text-decoration: none; transition: 160ms ease; }
+.conversation-card { position: relative; border: 1px solid var(--border); border-radius: 14px; background: #fff; transition: 160ms ease; }
 .conversation-card:hover { border-color: #ccb8c2; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(48,31,40,.05); }
+.conversation-main { min-height: 82px; padding: 20px 54px 20px 20px; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 16px; align-items: center; text-decoration: none; }
+.conversation-delete { position: absolute; top: 8px; right: 9px; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 8px; color: #9a9196; background: transparent; display: grid; place-items: center; cursor: pointer; font-size: 18px; line-height: 1; }
+.conversation-delete:hover:not(:disabled) { color: #9b352e; background: #fff0ef; }
+.conversation-delete:disabled { opacity: .4; cursor: wait; }
 .conversation-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; color: var(--accent); background: var(--accent-soft); font-size: 20px; }
 .conversation-copy { min-width: 0; }
 .conversation-copy h2 { margin: 0 0 5px; font-size: 14px; font-weight: 600; }
@@ -258,7 +262,7 @@ a { color: inherit; }
   .new-folder-form .button { width: auto; flex: 1; }
   .composer small { display: none; }
   .composer { padding-bottom: 10px; }
-  .conversation-card { grid-template-columns: 40px minmax(0, 1fr); }
+  .conversation-main { padding: 16px 42px 16px 16px; grid-template-columns: 40px minmax(0, 1fr); }
   .conversation-card .resume { display: none; }
   .file-table { border: 0; background: transparent; display: grid; gap: 10px; overflow: visible; }
   .file-row { min-height: auto; padding: 16px; border: 1px solid var(--border); border-radius: 13px; background: #fff; grid-template-columns: 1fr auto; gap: 13px; }

@@ -73,6 +73,14 @@ export default class ConversationsRepository {
     return id
   }
 
+  async remove(workspaceId: string, id: string): Promise<boolean> {
+    const result = await query(
+      'DELETE FROM conversation_sessions WHERE workspace_id = $1 AND id = $2',
+      [workspaceId, id]
+    )
+    return result.rowCount === 1
+  }
+
   async addExchange(
     workspaceId: string,
     conversationId: string,

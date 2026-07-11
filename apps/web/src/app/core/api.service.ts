@@ -35,6 +35,10 @@ export class ApiService {
     return this.get<Conversation>(`/api/conversations/${id}`)
   }
 
+  deleteConversation(id: string): Observable<void> {
+    return this.http.delete<void>(`/api/conversations/${id}`, { headers: this.headers })
+  }
+
   ask(message: string, conversationId?: string): Observable<AskResult> {
     return this.unwrap(this.http.post<ApiEnvelope<AskResult>>('/api/query', { message, conversationId }, { headers: this.headers }))
   }
