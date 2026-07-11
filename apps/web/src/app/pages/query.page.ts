@@ -46,7 +46,7 @@ import { ApiService } from '../core/api.service'
                   <details class="citations">
                     <summary>{{ message.citations.length }} sources</summary>
                     @for (citation of message.citations; track citation.chunkId) {
-                      <blockquote><strong>{{ citation.documentName }}</strong><span>{{ citation.excerpt }}</span></blockquote>
+                      <blockquote><strong>[{{ citation.label }}] {{ citation.documentName }}</strong><span>{{ citation.excerpt }}</span></blockquote>
                     }
                   </details>
                 }

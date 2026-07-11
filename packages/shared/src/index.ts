@@ -29,6 +29,7 @@ export interface DashboardSummary {
 }
 
 export interface Citation {
+  label: string
   documentId: string
   documentName: string
   chunkId: string

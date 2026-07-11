@@ -2,12 +2,14 @@ import { randomUUID } from 'node:crypto'
 import type { AskResult, Citation, DecisionTraceEvent } from '@hackathon/shared'
 import ConversationsRepository from '../repositories/conversations_repository.js'
 import DocumentsRepository from '../repositories/documents_repository.js'
+import BedrockLlmService from './bedrock_llm_service.js'
 import { embedText } from './vector_service.js'
 
 export default class ChatService {
   constructor(
     private readonly conversations = new ConversationsRepository(),
-    private readonly documents = new DocumentsRepository()
+    private readonly documents = new DocumentsRepository(),
+    private readonly bedrock = new BedrockLlmService()
   ) {}
 
   async ask(workspaceId: string, content: string, conversationId?: string): Promise<AskResult> {
@@ -26,7 +28,8 @@ export default class ChatService {
       `Ran workspace-scoped hybrid retrieval across ready chunks; ${matches.length} candidate${matches.length === 1 ? '' : 's'} returned.`,
       matches.length ? 'completed' : 'no_match'
     ))
-    const citations: Citation[] = matches.map((match) => ({
+    const citations: Citation[] = matches.map((match, index) => ({
+      label: `S${index + 1}`,
       documentId: match.documentId,
       documentName: match.documentName,
       chunkId: match.chunkId,
@@ -42,26 +45,66 @@ export default class ChatService {
         : 'No ready passage met the retrieval threshold, so the system will not invent a corpus answer.',
       citations.length ? 'completed' : 'guardrail'
     ))
-    const answer = groundedAnswer(content, citations)
-    trace.push(traceEvent(
-      'response',
-      citations.length ? 'Grounded response assembled' : 'No-answer guardrail applied',
-      citations.length
-        ? 'Produced an evidence-first response and attached the selected source passages as citations.'
-        : 'Returned a transparent no-answer response with guidance to add files or refine the query.',
-      citations.length ? 'completed' : 'guardrail'
-    ))
+    const generation = await this.generateAnswer(content, matches, citations)
+    trace.push(traceEvent('response', generation.title, generation.detail, generation.outcome))
     const message = await this.conversations.addExchange(
       workspaceId,
       activeConversationId,
       content,
-      answer,
+      generation.answer,
       citations,
       trace
     )
     const conversation = await this.conversations.get(workspaceId, activeConversationId)
     if (!conversation) throw new Error('Conversation could not be loaded')
     return { conversation, message }
+  }
+
+  private async generateAnswer(
+    question: string,
+    matches: Awaited<ReturnType<DocumentsRepository['search']>>,
+    citations: Citation[]
+  ): Promise<{
+    answer: string
+    title: string
+    detail: string
+    outcome: DecisionTraceEvent['outcome']
+  }> {
+    if (!matches.length) {
+      return {
+        answer: noAnswer(question),
+        title: 'No-answer guardrail applied',
+        detail: 'Skipped the model call because no relevant library context was available.',
+        outcome: 'guardrail',
+      }
+    }
+
+    if (this.bedrock.isConfigured()) {
+      try {
+        const result = await this.bedrock.generate(question, matches)
+        return {
+          answer: result.text,
+          title: 'Bedrock response generated',
+          detail: `Sent ${result.contextCharacters} context characters from ${result.contextPassages} retrieved passage${result.contextPassages === 1 ? '' : 's'} to the configured Bedrock model.`,
+          outcome: 'completed',
+        }
+      } catch (error) {
+        console.error('Bedrock generation failed', error instanceof Error ? error.name : 'UnknownError')
+        return {
+          answer: evidenceFallback(citations),
+          title: 'Evidence fallback applied',
+          detail: 'Bedrock generation was unavailable; returned the retrieved evidence without generating unsupported content.',
+          outcome: 'guardrail',
+        }
+      }
+    }
+
+    return {
+      answer: evidenceFallback(citations),
+      title: 'Evidence fallback applied',
+      detail: 'Bedrock is not fully configured; returned the retrieved evidence directly.',
+      outcome: 'guardrail',
+    }
   }
 }
 
@@ -90,13 +133,13 @@ function traceEvent(
   }
 }
 
-function groundedAnswer(question: string, citations: Citation[]): string {
-  if (!citations.length) {
-    return `I could not find a grounded answer for “${question}” in the ready documents. Add relevant files or try a more specific query.`
-  }
-
+function evidenceFallback(citations: Citation[]): string {
   const evidence = citations.slice(0, 3).map((citation, index) => (
     `${index + 1}. ${citation.excerpt.replace(/\s+/g, ' ').trim()}`
   )).join('\n\n')
   return `Here is the most relevant evidence from the indexed corpus:\n\n${evidence}`
+}
+
+function noAnswer(question: string): string {
+  return `I could not find a grounded answer for “${question}” in the ready documents. Add relevant files or try a more specific query.`
 }

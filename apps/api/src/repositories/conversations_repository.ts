@@ -123,7 +123,9 @@ function mapMessage(row: MessageRow): ChatMessage {
     id: row.id,
     role: row.role,
     content: row.content,
-    citations: Array.isArray(row.citations) ? (row.citations as Citation[]) : [],
+    citations: Array.isArray(row.citations)
+      ? (row.citations as Citation[]).map((citation, index) => ({ ...citation, label: citation.label || `S${index + 1}` }))
+      : [],
     decisionTrace: Array.isArray(row.decision_trace) ? (row.decision_trace as DecisionTraceEvent[]) : [],
     createdAt: row.created_at.toISOString(),
   }

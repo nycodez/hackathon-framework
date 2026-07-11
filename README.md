@@ -31,6 +31,8 @@ The starter deliberately keeps the first deployment small:
 - Scanned PDFs and images move to `needs_ocr` until `ANTHROPIC_API_KEY` is configured.
 - Summaries are deterministic and embeddings use local feature hashing. Replace these services with challenge-specific models without changing the database or API contracts.
 
+For each query, the API retrieves ready workspace-scoped chunks, bounds and labels the full source passages, and sends that context with the user's question through Bedrock Converse. No relevant chunks means no model call.
+
 For a production-sized corpus, move raw objects to S3 or Vercel Blob, upload directly with signed URLs, and keep only metadata, extracted text, chunks, and vectors in PostgreSQL.
 
 ## Local run
@@ -85,6 +87,7 @@ Set these environment variables for Preview and Production:
 | `AWS_SECRET_ACCESS_KEY` | Vercel Bedrock use | IAM secret key stored as a Vercel secret |
 | `AWS_SESSION_TOKEN` | Temporary credentials only | Session token for temporary AWS credentials |
 | `BEDROCK_MODEL_ID` | Bedrock use | Primary Claude model or inference-profile ID |
+| `BEDROCK_CONTEXT_MAX_CHARS` | No | Maximum retrieved source text sent per query; defaults to 12,000 |
 | `BEDROCK_LIGHTWEIGHT_MODEL_ID` | Bedrock use | Lightweight Claude model or inference-profile ID |
 | `BEDROCK_EMBEDDING_MODEL_ID` | Bedrock use | Cohere embedding model ID |
 
@@ -110,7 +113,8 @@ Every data query is scoped with `x-workspace-id`; the frontend currently sends `
 
 - Brand and navigation: `apps/web/src/app/layout/app-shell.component.ts`
 - Visual system: `apps/web/src/styles.css`
-- Query behavior: `apps/api/src/services/chat_service.ts`
+- Query/retrieval orchestration: `apps/api/src/services/chat_service.ts`
+- Bedrock grounded generation: `apps/api/src/services/bedrock_llm_service.ts`
 - Embeddings: `apps/api/src/services/vector_service.ts`
 - Extraction and OCR: `apps/api/src/services/ingestion_service.ts`
 - Database schema: `apps/api/src/db/migrations.ts`
