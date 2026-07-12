@@ -12,6 +12,7 @@ A clean Angular + Express starter for document-grounded hackathon products. It d
 - Small-file upload with visible ingestion, OCR, summarization, chunking, and vectorization states
 - Express API packaged as a Vercel Function under `/api`
 - Selectable disabled, local email/password, or Auth0 authentication
+- Workspace-scoped record creation log with optional authenticated actor attribution
 - PostgreSQL migrations with workspace scoping, full-text search, `vector(1024)`, and HNSW indexing
 - Dependency-free feature-hash embeddings, so retrieval works before an external embedding provider is added
 - Optional Claude OCR for scanned PDFs and images
@@ -159,7 +160,24 @@ With authentication disabled, every data query is scoped with `x-workspace-id` a
 - Bedrock grounded generation: `apps/api/src/services/bedrock_llm_service.ts`
 - Embeddings: `apps/api/src/services/vector_service.ts`
 - Extraction and OCR: `apps/api/src/services/ingestion_service.ts`
+- Record creation logging: `apps/api/src/services/record_log_service.ts`
 - Database schema: `apps/api/src/db/migrations.ts`
+
+## Record creation logging
+
+User-facing resource creation is recorded in `record_activity_log`. Conversations, folders, and new document uploads are wired by default; duplicate document uploads do not create a second creation event. To log a new record from a repository:
+
+```ts
+await logRecordCreated({
+  workspaceId,
+  actorId,
+  recordType: 'example_record',
+  recordId: record.id,
+  metadata: { name: record.name },
+}, client)
+```
+
+Pass the current transaction client whenever possible so the record and log entry commit or roll back together. Keep secrets, raw file contents, and other sensitive values out of metadata.
 
 ## Production hardening checklist
 

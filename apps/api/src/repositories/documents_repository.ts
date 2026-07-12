@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import type { KnowledgeDocument } from '@hackathon/shared'
 import type { QueryResultRow } from 'pg'
 import { query, transaction } from '../db/pool.js'
+import { logRecordCreated } from '../services/record_log_service.js'
 import { toVectorLiteral } from '../services/vector_service.js'
 
 interface DocumentRow extends QueryResultRow {
@@ -75,27 +76,62 @@ export default class DocumentsRepository {
     return result.rows.map(mapDocument)
   }
 
-  async ingest(workspaceId: string, file: Express.Multer.File, folderId: string | null = null): Promise<KnowledgeDocument> {
-    if (folderId) {
-      const folder = await query('SELECT id FROM library_folders WHERE workspace_id = $1 AND id = $2', [workspaceId, folderId])
-      if (!folder.rowCount) throw new Error('Folder not found')
-    }
+  async ingest(
+    workspaceId: string,
+    file: Express.Multer.File,
+    folderId: string | null = null,
+    actorId: string | null = null
+  ): Promise<KnowledgeDocument> {
     const checksum = createHash('sha256').update(file.buffer).digest('hex')
-    await query(
-      `INSERT INTO knowledge_documents (
-         workspace_id, name, mime_type, size_bytes, content_sha256, raw_data, folder_id
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT (workspace_id, content_sha256)
-       DO UPDATE SET name = EXCLUDED.name, folder_id = EXCLUDED.folder_id, updated_at = now()`,
-      [workspaceId, file.originalname, file.mimetype || 'application/octet-stream', file.size, checksum, file.buffer, folderId]
-    )
-    const result = await query<DocumentRow>(
-      `${documentSelect}
-       WHERE d.workspace_id = $1 AND d.content_sha256 = $2
-       GROUP BY d.id`,
-      [workspaceId, checksum]
-    )
-    return mapDocument(requiredRow(result.rows[0]))
+    const mimeType = file.mimetype || 'application/octet-stream'
+    return transaction(async (client) => {
+      if (folderId) {
+        const folder = await client.query(
+          'SELECT id FROM library_folders WHERE workspace_id = $1 AND id = $2',
+          [workspaceId, folderId]
+        )
+        if (!folder.rowCount) throw new Error('Folder not found')
+      }
+
+      const inserted = await client.query<{ id: string }>(
+        `INSERT INTO knowledge_documents (
+           workspace_id, name, mime_type, size_bytes, content_sha256, raw_data, folder_id
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (workspace_id, content_sha256) DO NOTHING
+         RETURNING id`,
+        [workspaceId, file.originalname, mimeType, file.size, checksum, file.buffer, folderId]
+      )
+      const newDocumentId = inserted.rows[0]?.id
+      if (newDocumentId) {
+        await logRecordCreated({
+          workspaceId,
+          actorId,
+          recordType: 'knowledge_document',
+          recordId: newDocumentId,
+          metadata: {
+            name: file.originalname,
+            mimeType,
+            sizeBytes: file.size,
+            folderId,
+          },
+        }, client)
+      } else {
+        await client.query(
+          `UPDATE knowledge_documents
+           SET name = $3, folder_id = $4, updated_at = now()
+           WHERE workspace_id = $1 AND content_sha256 = $2`,
+          [workspaceId, checksum, file.originalname, folderId]
+        )
+      }
+
+      const result = await client.query<DocumentRow>(
+        `${documentSelect}
+         WHERE d.workspace_id = $1 AND d.content_sha256 = $2
+         GROUP BY d.id`,
+        [workspaceId, checksum]
+      )
+      return mapDocument(requiredRow(result.rows[0]))
+    })
   }
 
   async get(workspaceId: string, id: string): Promise<StoredDocument | null> {

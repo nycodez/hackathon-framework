@@ -21,3 +21,10 @@ export function workspaceId(req: Request): string {
   if (!supplied) return defaultWorkspace
   return /^[a-zA-Z0-9_-]{1,64}$/.test(supplied) ? supplied : defaultWorkspace
 }
+
+export function actorId(req: Request): string | null {
+  const authConfig = authConfiguration()
+  if (authConfig.mode === 'auth0') return req.auth?.payload.sub ?? null
+  if (authConfig.mode === 'local') return req.localAuthUser?.id ?? null
+  return null
+}

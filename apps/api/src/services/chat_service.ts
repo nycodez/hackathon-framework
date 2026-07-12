@@ -12,9 +12,14 @@ export default class ChatService {
     private readonly bedrock = new BedrockLlmService()
   ) {}
 
-  async ask(workspaceId: string, content: string, conversationId?: string): Promise<AskResult> {
+  async ask(
+    workspaceId: string,
+    content: string,
+    conversationId?: string,
+    actorId: string | null = null
+  ): Promise<AskResult> {
     const trace = createTrace(content, Boolean(conversationId))
-    const activeConversationId = conversationId ?? await this.conversations.create(workspaceId, content)
+    const activeConversationId = conversationId ?? await this.conversations.create(workspaceId, content, actorId)
     if (conversationId && !await this.conversations.get(workspaceId, conversationId)) {
       throw new Error('Conversation not found')
     }

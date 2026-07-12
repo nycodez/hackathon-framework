@@ -8,7 +8,7 @@ import LibraryRepository from '../repositories/library_repository.js'
 import ChatService from '../services/chat_service.js'
 import IngestionService from '../services/ingestion_service.js'
 import { VECTOR_DIMENSIONS } from '../services/vector_service.js'
-import { workspaceId } from '../services/workspace_service.js'
+import { actorId, workspaceId } from '../services/workspace_service.js'
 
 const router = Router()
 const documents = new DocumentsRepository()
@@ -104,7 +104,7 @@ router.post('/query', asyncRoute(async (req, res) => {
   const parsed = askSchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json(validationError('message', parsed.error.issues[0]?.message ?? 'Invalid query'))
   try {
-    const result = await chat.ask(workspaceId(req), parsed.data.message, parsed.data.conversationId)
+    const result = await chat.ask(workspaceId(req), parsed.data.message, parsed.data.conversationId, actorId(req))
     return res.status(parsed.data.conversationId ? 200 : 201).json({ success: true, data: result })
   } catch (error) {
     if (error instanceof Error && error.message === 'Conversation not found') {
@@ -150,7 +150,7 @@ router.post('/library/folders', asyncRoute(async (req, res) => {
   const parsed = createFolderSchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json(validationError('folder', parsed.error.issues[0]?.message ?? 'Invalid folder'))
   try {
-    const folder = await library.create(workspaceId(req), parsed.data.name, parsed.data.parentId)
+    const folder = await library.create(workspaceId(req), parsed.data.name, parsed.data.parentId, actorId(req))
     return res.status(201).json({ success: true, data: folder })
   } catch (error) {
     if (error instanceof Error && error.message === 'Folder not found') {
@@ -176,7 +176,7 @@ router.post('/documents', upload.single('file'), asyncRoute(async (req, res) => 
   const parsed = optionalFolderIdSchema.safeParse(req.body.folderId)
   if (!parsed.success) return res.status(400).json(validationError('folderId', 'A valid folder ID is required'))
   try {
-    const document = await documents.ingest(workspaceId(req), req.file, parsed.data)
+    const document = await documents.ingest(workspaceId(req), req.file, parsed.data, actorId(req))
     return res.status(202).json({ success: true, data: document })
   } catch (error) {
     if (error instanceof Error && error.message === 'Folder not found') {

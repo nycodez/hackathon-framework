@@ -186,4 +186,24 @@ export const migrations = [
       ALTER TABLE auth_verifications ALTER COLUMN id SET DEFAULT gen_random_uuid()::text;
     `,
   },
+  {
+    id: '005_record_activity_log',
+    sql: `
+      CREATE TABLE IF NOT EXISTS record_activity_log (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        workspace_id text NOT NULL,
+        actor_id text,
+        action text NOT NULL CHECK (action IN ('created')),
+        record_type text NOT NULL CHECK (char_length(record_type) BETWEEN 1 AND 80),
+        record_id text NOT NULL,
+        metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+
+      CREATE INDEX IF NOT EXISTS record_activity_log_workspace_created_idx
+        ON record_activity_log (workspace_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS record_activity_log_record_idx
+        ON record_activity_log (workspace_id, record_type, record_id, created_at DESC);
+    `,
+  },
 ] as const

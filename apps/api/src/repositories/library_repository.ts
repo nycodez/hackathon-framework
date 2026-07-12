@@ -1,6 +1,7 @@
 import type { LibraryFolder, LibraryListing } from '@hackathon/shared'
 import type { QueryResultRow } from 'pg'
 import { query, transaction } from '../db/pool.js'
+import { logRecordCreated } from '../services/record_log_service.js'
 import DocumentsRepository from './documents_repository.js'
 
 interface FolderRow extends QueryResultRow {
@@ -37,18 +38,38 @@ export default class LibraryRepository {
     }
   }
 
-  async create(workspaceId: string, name: string, parentId: string | null): Promise<LibraryFolder> {
-    if (parentId && !await this.get(workspaceId, parentId)) throw new Error('Folder not found')
+  async create(
+    workspaceId: string,
+    name: string,
+    parentId: string | null,
+    actorId: string | null = null
+  ): Promise<LibraryFolder> {
     try {
-      const result = await query<FolderRow>(
-        `INSERT INTO library_folders (workspace_id, parent_id, name)
-         VALUES ($1, $2, $3)
-         RETURNING id, parent_id, name, created_at`,
-        [workspaceId, parentId, name]
-      )
-      const folder = result.rows[0]
-      if (!folder) throw new Error('Folder could not be created')
-      return mapFolder(folder)
+      return await transaction(async (client) => {
+        if (parentId) {
+          const parent = await client.query(
+            'SELECT id FROM library_folders WHERE workspace_id = $1 AND id = $2',
+            [workspaceId, parentId]
+          )
+          if (!parent.rowCount) throw new Error('Folder not found')
+        }
+        const result = await client.query<FolderRow>(
+          `INSERT INTO library_folders (workspace_id, parent_id, name)
+           VALUES ($1, $2, $3)
+           RETURNING id, parent_id, name, created_at`,
+          [workspaceId, parentId, name]
+        )
+        const folder = result.rows[0]
+        if (!folder) throw new Error('Folder could not be created')
+        await logRecordCreated({
+          workspaceId,
+          actorId,
+          recordType: 'library_folder',
+          recordId: folder.id,
+          metadata: { name: folder.name, parentId: folder.parent_id },
+        }, client)
+        return mapFolder(folder)
+      })
     } catch (error) {
       if (isUniqueViolation(error)) throw new Error('A folder with this name already exists here')
       throw error

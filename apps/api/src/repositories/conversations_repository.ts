@@ -1,6 +1,7 @@
 import type { ChatMessage, Citation, Conversation, ConversationSummary, DecisionTraceEvent } from '@hackathon/shared'
 import type { QueryResultRow } from 'pg'
 import { query, transaction } from '../db/pool.js'
+import { logRecordCreated } from '../services/record_log_service.js'
 
 interface ConversationRow extends QueryResultRow {
   id: string
@@ -62,15 +63,24 @@ export default class ConversationsRepository {
     return { ...mapSummary(session), messages: messages.rows.map(mapMessage) }
   }
 
-  async create(workspaceId: string, firstMessage: string): Promise<string> {
+  async create(workspaceId: string, firstMessage: string, actorId: string | null = null): Promise<string> {
     const title = firstMessage.replace(/\s+/g, ' ').trim().slice(0, 72) || 'New conversation'
-    const result = await query<{ id: string }>(
-      'INSERT INTO conversation_sessions (workspace_id, title) VALUES ($1, $2) RETURNING id',
-      [workspaceId, title]
-    )
-    const id = result.rows[0]?.id
-    if (!id) throw new Error('Conversation could not be created')
-    return id
+    return transaction(async (client) => {
+      const result = await client.query<{ id: string }>(
+        'INSERT INTO conversation_sessions (workspace_id, title) VALUES ($1, $2) RETURNING id',
+        [workspaceId, title]
+      )
+      const id = result.rows[0]?.id
+      if (!id) throw new Error('Conversation could not be created')
+      await logRecordCreated({
+        workspaceId,
+        actorId,
+        recordType: 'conversation',
+        recordId: id,
+        metadata: { title },
+      }, client)
+      return id
+    })
   }
 
   async remove(workspaceId: string, id: string): Promise<boolean> {
