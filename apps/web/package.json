@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "ng serve --port 4200 --proxy-config apps/web/proxy.conf.json",
     "start": "ng serve --port 4200 --proxy-config apps/web/proxy.conf.json",
     "build": "ng build",
     "typecheck": "ng build --configuration development"

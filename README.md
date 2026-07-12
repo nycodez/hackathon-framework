@@ -1,10 +1,10 @@
 # Hackathon Framework
 
-A clean Angular + Express starter for document-grounded hackathon products. It deploys as one Vercel project and uses PostgreSQL 17 with pgvector as the durable source of truth.
+A clean, highly opinionated Angular + Express starter for document-grounded hackathon products. It deploys as one Vercel project and uses managed PostgreSQL with pgvector as the durable source of truth. Neon is a low-friction option for hobby projects and demos; AWS RDS remains a good fit when the deployment needs dedicated infrastructure and network control.
 
 ## Included
 
-- Angular 21 standalone frontend with a minimal left navigation: Home, Query, Results, and Library
+- Angular 21 standalone frontend with a minimal left navigation: Dashboard, Query, Results, and Library
 - Chat-style Query page with a bottom composer and source citations
 - Read-only Decision Console with persisted, observable retrieval and response-policy events
 - Durable, resumable conversation sessions on the Results page
@@ -12,17 +12,65 @@ A clean Angular + Express starter for document-grounded hackathon products. It d
 - Small-file upload with visible ingestion, OCR, summarization, chunking, and vectorization states
 - Express API packaged as a Vercel Function under `/api`
 - Selectable disabled, local email/password, or Auth0 authentication
-- Workspace-scoped record creation log with optional authenticated actor attribution
+- Workspace-scoped activity log for record creation and local authentication events
 - PostgreSQL migrations with workspace scoping, full-text search, `vector(1024)`, and HNSW indexing
 - Dependency-free feature-hash embeddings, so retrieval works before an external embedding provider is added
 - Optional Claude OCR for scanned PDFs and images
+
+## Benefits
+
+### Fast to turn into a challenge-specific product
+
+- The browser, API, database, retrieval system, authentication, and deployment configuration already work together, leaving teams to focus on the challenge flow.
+- Angular and Express live in one pnpm workspace with shared TypeScript contracts, so frontend and API changes stay aligned.
+- The code uses conventional routes, repositories, and small services that are straightforward to inspect, replace, or delete when creating a derivative repository.
+- Dashboard, Query, Results, and Library provide a usable baseline without forcing every child application to keep every page.
+- Branding, navigation, retrieval, generation, extraction, embeddings, logging, and schema each have an obvious customization point.
+- The MIT license permits straightforward reuse across independent challenge repositories.
+
+### Useful before every external integration is configured
+
+- Text-bearing files can be extracted, summarized, chunked, embedded, indexed, and searched without an external AI key.
+- Dependency-free feature-hash embeddings and deterministic summaries provide a functional local fallback while preserving the same database and API contracts used by model-backed implementations.
+- Small raw files can live in PostgreSQL initially, avoiding an object-storage dependency during a hackathon.
+- Optional capabilities degrade visibly: scanned files wait in `needs_ocr`, failed processing is retryable, and unavailable Bedrock generation returns retrieved evidence instead of an invented answer.
+- Health checks, ingestion states, error messages, and the Decision Console make incomplete configuration and runtime behavior easier to diagnose.
+
+### Grounded AI behavior by default
+
+- A lightweight Bedrock model converts the question into a structured retrieval plan before the primary model is used, separating inexpensive query analysis from answer generation.
+- Hybrid pgvector and PostgreSQL full-text retrieval combines semantic similarity with exact term matching, including additional ranking for monetary questions.
+- Retrieval is workspace-scoped, context is bounded, and passages are labeled before being sent to the model.
+- Answers preserve source citations and readable Markdown, while original documents can be previewed from the Library.
+- If no relevant corpus evidence is found, the generation call is skipped. This reduces cost and prevents unsupported corpus answers.
+- The draggable Decision Console exposes observable retrieval and policy decisions without claiming to reveal private model reasoning, while allowing users to choose how much screen space diagnostics receive.
+
+### Durable data and practical operations
+
+- Conversations and messages are stored durably, can be resumed from Results, and can be deleted with their dependent data.
+- Nested, alphabetized Library folders support breadcrumbs, folder-aware uploads, previews, and recursive deletion.
+- PostgreSQL provides one durable source of truth for documents, chunks, vectors, conversations, folders, authentication, and activity history.
+- Explicit, transactional migrations avoid hidden schema changes during application startup or Vercel builds.
+- HNSW vector and GIN full-text indexes provide a credible retrieval foundation that can grow beyond a demo corpus.
+- Transaction-aware activity logging keeps record creation and its audit entry consistent.
+
+### Secure and deployable baseline
+
+- Authentication can remain off for rapid prototyping, use self-contained local registration, or switch to Auth0 without changing application routes.
+- Authenticated users receive isolated workspaces derived from verified identities; caller-supplied workspace headers are ignored in authenticated modes.
+- Local registration, login success, failed login, and logout are auditable without recording passwords, tokens, cookies, or raw failed-login emails.
+- Raw document previews use restrictive response headers, while upload size limits and workspace checks are enforced by the API.
+- The Angular application and Express API deploy as one same-origin Vercel project, reducing deployment and CORS complexity.
+- The Vercel function is region-pinned near the intended database deployment, and database pooling is configurable for serverless limits.
+- The responsive desktop/mobile shell, loading states, retry paths, and readable error responses provide a presentable starting UX.
+- The README identifies the deliberate production boundaries—object storage, queues, malware scanning, quotas, and broader tests—so prototype shortcuts are explicit rather than hidden.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
   B[Angular browser app] -->|/api| V[Express Vercel Function]
-  V --> R[(AWS RDS PostgreSQL 17)]
+  V --> R[(Managed PostgreSQL<br/>Neon or AWS RDS)]
   R --> P[pgvector + full-text indexes]
   V -. scanned files .-> O[Optional OCR provider]
 ```
@@ -50,19 +98,25 @@ pnpm setup:local
 pnpm dev
 ```
 
+`pnpm dev` starts both the Angular frontend and Express API in parallel. Use `pnpm dev:web` or `pnpm dev:api` when only one process is needed.
+
 - Web: `http://localhost:4200`
 - API health: `http://localhost:3333/api/health`
 - PostgreSQL: `localhost:5433` (container port `5432`; host port `5433` avoids a common local PostgreSQL conflict)
 
-## AWS RDS PostgreSQL 17
+## PostgreSQL hosting
 
-1. Create an RDS PostgreSQL 17 instance in or near `ap-southeast-1`.
-2. Connect with a database owner and run `pnpm db:migrate` using the RDS `DATABASE_URL`. The migration enables `vector`, `pgcrypto`, and `unaccent`.
-3. Require TLS with `PGSSLMODE=require`.
-4. Put the database URL in Vercel environment variables; never commit it.
-5. Keep network access narrow. For a durable deployment, use Vercel Secure Compute/static egress and allow only that egress in the RDS security group.
+The application only requires a PostgreSQL database that permits the `vector`, `pgcrypto`, and `unaccent` extensions. Set `DATABASE_URL`, require TLS with `PGSSLMODE=require`, and run `pnpm db:migrate` before opening the application. Store the connection string in Vercel environment variables and never commit it.
 
-The Vercel function is pinned to Singapore (`sin1`) by default to reduce latency to an RDS instance in Singapore. Change `regions` in `vercel.json` if the database lives elsewhere.
+### Neon for a hobby project or demo
+
+[Neon](https://neon.com) provides serverless PostgreSQL, pgvector support, pooled connections, and a [free plan](https://neon.com/pricing) suited to intermittent development, demos, previews, and experiments. Create a project, copy its pooled connection string into `DATABASE_URL`, set `PGSSLMODE=require`, and run the normal migration command. Review the current free-plan limits before relying on it for sustained traffic or a larger corpus.
+
+### AWS RDS for controlled infrastructure
+
+AWS RDS remains appropriate when the application needs dedicated capacity, AWS-native operations, or tighter network control. Create a compatible PostgreSQL instance near the application region, run the same migrations, and restrict database access to approved egress. Vercel Secure Compute/static egress can be allowlisted in the RDS security group for a more durable deployment.
+
+The Vercel function is pinned to Singapore (`sin1`) by default. Use a database region close to Singapore or change `regions` in `vercel.json` to keep application-to-database latency low.
 
 ## Authentication modes
 
@@ -106,8 +160,8 @@ Set these environment variables for Preview and Production:
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `DATABASE_URL` | Yes | RDS PostgreSQL connection string |
-| `PGSSLMODE` | Yes | Use `require` for RDS |
+| `DATABASE_URL` | Yes | Managed PostgreSQL connection string, such as Neon or AWS RDS |
+| `PGSSLMODE` | Yes | Use `require` for managed PostgreSQL TLS |
 | `PG_POOL_MAX` | No | Per-function pool size; defaults to 5 |
 | `CORS_ORIGIN` | No | Only needed when the API is called from another origin |
 | `AUTH_ENABLED` | No | `false`, `local`, or `auth0`; defaults to `false` |
@@ -160,10 +214,10 @@ With authentication disabled, every data query is scoped with `x-workspace-id` a
 - Bedrock grounded generation: `apps/api/src/services/bedrock_llm_service.ts`
 - Embeddings: `apps/api/src/services/vector_service.ts`
 - Extraction and OCR: `apps/api/src/services/ingestion_service.ts`
-- Record creation logging: `apps/api/src/services/record_log_service.ts`
+- Activity logging: `apps/api/src/services/record_log_service.ts`
 - Database schema: `apps/api/src/db/migrations.ts`
 
-## Record creation logging
+## Activity logging
 
 User-facing resource creation and local authentication events are recorded in `record_activity_log`. Conversations, folders, and new document uploads are wired by default; duplicate document uploads do not create a second creation event. Local auth records registration, successful login, failed login, and logout without storing passwords, tokens, cookies, or submitted email addresses. To log a new record from a repository:
 
@@ -185,5 +239,5 @@ Pass the current transaction client whenever possible so the record and log entr
 - Move large raw uploads to object storage with signed upload URLs.
 - Add a durable queue for long-running OCR and indexing jobs.
 - Add malware scanning, MIME signature validation, rate limits, and per-workspace quotas.
-- Replace deterministic answer assembly with a grounded model call and preserve citations.
+- Configure and evaluate the grounded Bedrock model and retrieval thresholds for the target corpus.
 - Add automated migration, API, retrieval, and browser tests before public use.
