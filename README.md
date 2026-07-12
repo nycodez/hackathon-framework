@@ -165,7 +165,7 @@ With authentication disabled, every data query is scoped with `x-workspace-id` a
 
 ## Record creation logging
 
-User-facing resource creation is recorded in `record_activity_log`. Conversations, folders, and new document uploads are wired by default; duplicate document uploads do not create a second creation event. To log a new record from a repository:
+User-facing resource creation and local authentication events are recorded in `record_activity_log`. Conversations, folders, and new document uploads are wired by default; duplicate document uploads do not create a second creation event. Local auth records registration, successful login, failed login, and logout without storing passwords, tokens, cookies, or submitted email addresses. To log a new record from a repository:
 
 ```ts
 await logRecordCreated({

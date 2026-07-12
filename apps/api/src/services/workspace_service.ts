@@ -14,12 +14,16 @@ export function workspaceId(req: Request): string {
   if (authConfig.mode === 'local') {
     const userId = req.localAuthUser?.id
     if (!userId) throw new Error('Authenticated request is missing a local user')
-    return `local-${createHash('sha256').update(userId).digest('hex').slice(0, 48)}`
+    return localWorkspaceId(userId)
   }
 
   const supplied = req.header('x-workspace-id')?.trim()
   if (!supplied) return defaultWorkspace
   return /^[a-zA-Z0-9_-]{1,64}$/.test(supplied) ? supplied : defaultWorkspace
+}
+
+export function localWorkspaceId(userId: string): string {
+  return `local-${createHash('sha256').update(userId).digest('hex').slice(0, 48)}`
 }
 
 export function actorId(req: Request): string | null {

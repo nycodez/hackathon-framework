@@ -206,4 +206,17 @@ export const migrations = [
         ON record_activity_log (workspace_id, record_type, record_id, created_at DESC);
     `,
   },
+  {
+    id: '006_auth_activity_events',
+    sql: `
+      ALTER TABLE record_activity_log
+        DROP CONSTRAINT IF EXISTS record_activity_log_action_check;
+      ALTER TABLE record_activity_log
+        ALTER COLUMN workspace_id DROP NOT NULL;
+      ALTER TABLE record_activity_log
+        ADD CONSTRAINT record_activity_log_action_check CHECK (
+          action IN ('created', 'registered', 'login_succeeded', 'login_failed', 'logged_out')
+        );
+    `,
+  },
 ] as const
