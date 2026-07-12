@@ -184,6 +184,34 @@ Set these environment variables for Preview and Production:
 
 Run migrations before opening the deployed application. Migrations are intentionally not executed during request startup or every Vercel build.
 
+## API response conventions
+
+Successful JSON responses place the result under `data`:
+
+```json
+{
+  "success": true,
+  "data": {}
+}
+```
+
+Endpoints may add `meta` for pagination or other non-domain response context. Failed requests return one or more structured errors:
+
+```json
+{
+  "success": false,
+  "errors": [
+    {
+      "rule": "validation",
+      "field": "email",
+      "message": "A valid email is required"
+    }
+  ]
+}
+```
+
+HTTP status codes remain authoritative. Use stable, machine-readable `rule` values; keep user-safe text in `message`; never expose stack traces or raw database errors. Successful `204 No Content` operations return no response body.
+
 ## API surface
 
 | Method | Route | Purpose |
