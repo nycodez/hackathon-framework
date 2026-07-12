@@ -108,6 +108,7 @@ Run migrations before opening the deployed application. Migrations are intention
 | `POST` | `/api/library/folders` | Create a folder in the current workspace location |
 | `GET` | `/api/documents` | Corpus files and pipeline states |
 | `POST` | `/api/documents` | Ingest one multipart file |
+| `GET` | `/api/documents/:id/raw` | Stream an original document inline for preview |
 | `POST` | `/api/documents/:id/process` | Process or retry an ingested file |
 | `DELETE` | `/api/documents/:id` | Remove a file and its chunks |
 

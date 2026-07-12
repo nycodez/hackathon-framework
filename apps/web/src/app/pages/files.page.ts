@@ -1,10 +1,12 @@
 import { DatePipe, DecimalPipe } from '@angular/common'
-import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, OnInit, ViewChild, computed, inject, signal } from '@angular/core'
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, HostListener, OnInit, ViewChild, computed, inject, signal } from '@angular/core'
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop'
+import { DomSanitizer, type SafeResourceUrl } from '@angular/platform-browser'
 import { ActivatedRoute, Router } from '@angular/router'
-import type { LibraryListing } from '@hackathon/shared'
+import type { KnowledgeDocument, LibraryListing } from '@hackathon/shared'
 import { distinctUntilChanged, finalize, map, switchMap } from 'rxjs'
 import { ApiService } from '../core/api.service'
+import { MarkdownPipe } from '../core/markdown.pipe'
 
 const emptyListing: LibraryListing = {
   currentFolder: null,
@@ -13,9 +15,18 @@ const emptyListing: LibraryListing = {
   documents: [],
 }
 
+type PreviewKind = 'pdf' | 'image' | 'markdown' | 'text' | 'unsupported'
+
+interface DocumentPreview {
+  document: KnowledgeDocument
+  kind: PreviewKind
+  url: string
+  trustedUrl: SafeResourceUrl | null
+}
+
 @Component({
   standalone: true,
-  imports: [DatePipe, DecimalPipe],
+  imports: [DatePipe, DecimalPipe, MarkdownPipe],
   template: `
     <section class="page">
       <header class="page-header compact-header">
@@ -73,7 +84,7 @@ const emptyListing: LibraryListing = {
             <div class="file-row file-head" role="row"><span>File</span><span>Pipeline</span><span>Size</span><span>Updated</span></div>
             @for (document of listing().documents; track document.id) {
               <article class="file-row" role="row">
-                <div class="file-name"><span class="file-icon">▱</span><div><strong>{{ document.name }}</strong><small>{{ document.mimeType }} · {{ document.chunkCount }} chunks</small></div></div>
+                <button class="file-name file-preview-trigger" type="button" (click)="openPreview(document)" [attr.aria-label]="'Preview ' + document.name"><span class="file-icon">▱</span><span class="file-copy"><strong>{{ document.name }}</strong><small>{{ document.mimeType }} · {{ document.chunkCount }} chunks</small></span></button>
                 <div><span class="status-pill" [attr.data-status]="document.status"><i></i>{{ document.status }}</span>@if (document.errorMessage) { <small class="file-error">{{ document.errorMessage }}</small> }</div>
                 <span>{{ document.sizeBytes / 1024 | number:'1.0-1' }} KB</span>
                 <span>{{ document.updatedAt | date:'short' }}</span>
@@ -84,6 +95,38 @@ const emptyListing: LibraryListing = {
         }
       }
     </section>
+
+    @if (preview(); as filePreview) {
+      <div class="preview-backdrop" role="presentation" (click)="closePreview()">
+        <section class="document-preview" role="dialog" aria-modal="true" aria-labelledby="preview-heading" (click)="keepPreviewOpen($event)">
+          <header class="preview-header">
+            <div>
+              <h2 id="preview-heading">{{ filePreview.document.name }}</h2>
+              <p>{{ filePreview.document.mimeType }} · {{ filePreview.document.sizeBytes / 1024 | number:'1.0-1' }} KB</p>
+            </div>
+            <button class="preview-close" type="button" (click)="closePreview()" aria-label="Close preview">×</button>
+          </header>
+
+          <div class="preview-body" [attr.data-kind]="filePreview.kind">
+            @if (previewLoading()) {
+              <div class="preview-state" role="status">Loading preview…</div>
+            } @else if (previewError()) {
+              <div class="preview-state error" role="alert">{{ previewError() }}</div>
+            } @else if (filePreview.kind === 'pdf') {
+              <iframe [src]="filePreview.trustedUrl" [title]="filePreview.document.name"></iframe>
+            } @else if (filePreview.kind === 'image') {
+              <img [src]="filePreview.url" [alt]="filePreview.document.name">
+            } @else if (filePreview.kind === 'markdown') {
+              <article class="preview-markdown markdown-content" [innerHTML]="previewText() | markdown"></article>
+            } @else if (filePreview.kind === 'text') {
+              <pre>{{ previewText() }}</pre>
+            } @else {
+              <div class="preview-state"><p>This file type opens in the browser instead of the inline viewer.</p><a class="button primary" [href]="filePreview.url" target="_blank" rel="noopener">Open file</a></div>
+            }
+          </div>
+        </section>
+      </div>
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -93,6 +136,7 @@ export class FilesPage implements OnInit {
   private readonly route = inject(ActivatedRoute)
   private readonly router = inject(Router)
   private readonly destroyRef = inject(DestroyRef)
+  private readonly sanitizer = inject(DomSanitizer)
   protected readonly listing = signal<LibraryListing>(emptyListing)
   protected readonly currentFolderId = signal<string | null>(null)
   protected readonly loading = signal(true)
@@ -102,6 +146,10 @@ export class FilesPage implements OnInit {
   protected readonly showFolderForm = signal(false)
   protected readonly folderDraft = signal('')
   protected readonly error = signal('')
+  protected readonly preview = signal<DocumentPreview | null>(null)
+  protected readonly previewText = signal('')
+  protected readonly previewLoading = signal(false)
+  protected readonly previewError = signal('')
   protected readonly hasItems = computed(() => Boolean(this.listing().folders.length || this.listing().documents.length))
 
   ngOnInit(): void {
@@ -194,6 +242,51 @@ export class FilesPage implements OnInit {
     })
   }
 
+  protected openPreview(document: KnowledgeDocument): void {
+    const kind = this.previewKind(document)
+    const url = this.api.documentRawUrl(document.id)
+    this.previewText.set('')
+    this.previewError.set('')
+    this.previewLoading.set(kind === 'markdown' || kind === 'text')
+    this.preview.set({
+      document,
+      kind,
+      url,
+      trustedUrl: kind === 'pdf' ? this.sanitizer.bypassSecurityTrustResourceUrl(url) : null,
+    })
+
+    if (kind !== 'markdown' && kind !== 'text') return
+    this.api.documentText(document.id).pipe(
+      takeUntilDestroyed(this.destroyRef),
+      finalize(() => {
+        if (this.preview()?.document.id === document.id) this.previewLoading.set(false)
+      })
+    ).subscribe({
+      next: (content) => {
+        if (this.preview()?.document.id === document.id) this.previewText.set(content)
+      },
+      error: (error: unknown) => {
+        if (this.preview()?.document.id === document.id) this.previewError.set(this.api.message(error))
+      },
+    })
+  }
+
+  protected closePreview(): void {
+    this.preview.set(null)
+    this.previewText.set('')
+    this.previewLoading.set(false)
+    this.previewError.set('')
+  }
+
+  protected keepPreviewOpen(event: Event): void {
+    event.stopPropagation()
+  }
+
+  @HostListener('document:keydown.escape')
+  protected closePreviewWithEscape(): void {
+    if (this.preview()) this.closePreview()
+  }
+
   private load(): void {
     this.loading.set(true)
     this.error.set('')
@@ -204,5 +297,15 @@ export class FilesPage implements OnInit {
       next: (listing) => this.listing.set(listing),
       error: (error: unknown) => this.error.set(this.api.message(error)),
     })
+  }
+
+  private previewKind(document: KnowledgeDocument): PreviewKind {
+    const mimeType = document.mimeType.toLowerCase()
+    const extension = document.name.toLowerCase().split('.').pop() ?? ''
+    if (mimeType === 'application/pdf' || extension === 'pdf') return 'pdf'
+    if (mimeType.startsWith('image/')) return 'image'
+    if (mimeType === 'text/markdown' || extension === 'md' || extension === 'markdown') return 'markdown'
+    if (mimeType.startsWith('text/') || ['application/json', 'application/xml'].includes(mimeType)) return 'text'
+    return 'unsupported'
   }
 }

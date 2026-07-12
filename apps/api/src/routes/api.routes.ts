@@ -118,6 +118,26 @@ router.get('/documents', asyncRoute(async (req, res) => {
   res.json({ success: true, data: await documents.list(workspaceId(req)) })
 }))
 
+router.get('/documents/:id/raw', asyncRoute(async (req, res) => {
+  const parsed = idSchema.safeParse(req.params.id)
+  if (!parsed.success) return res.status(400).json(validationError('id', 'A valid document ID is required'))
+  const document = await documents.get(workspaceId(req), parsed.data)
+  if (!document) return res.status(404).json(notFound('document'))
+
+  const fallbackName = document.name.replace(/[^\x20-\x7e]|["\\]/g, '_') || 'document'
+  const encodedName = encodeURIComponent(document.name).replace(/[!'()*]/g, (character) =>
+    `%${character.charCodeAt(0).toString(16).toUpperCase()}`
+  )
+  res.set({
+    'Cache-Control': 'private, no-store',
+    'Content-Disposition': `inline; filename="${fallbackName}"; filename*=UTF-8''${encodedName}`,
+    'Content-Security-Policy': "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data: blob:",
+    'Content-Type': document.mimeType || 'application/octet-stream',
+    'X-Content-Type-Options': 'nosniff',
+  })
+  return res.send(document.rawData)
+}))
+
 router.get('/library', asyncRoute(async (req, res) => {
   const parsed = optionalFolderIdSchema.safeParse(req.query.folderId)
   if (!parsed.success) return res.status(400).json(validationError('folderId', 'A valid folder ID is required'))
