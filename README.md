@@ -11,6 +11,7 @@ A clean Angular + Express starter for document-grounded hackathon products. It d
 - Nested Library folders with breadcrumb navigation and folder-aware uploads
 - Small-file upload with visible ingestion, OCR, summarization, chunking, and vectorization states
 - Express API packaged as a Vercel Function under `/api`
+- Selectable disabled, local email/password, or Auth0 authentication
 - PostgreSQL migrations with workspace scoping, full-text search, `vector(1024)`, and HNSW indexing
 - Dependency-free feature-hash embeddings, so retrieval works before an external embedding provider is added
 - Optional Claude OCR for scanned PDFs and images
@@ -62,6 +63,34 @@ pnpm dev
 
 The Vercel function is pinned to Singapore (`sin1`) by default to reduce latency to an RDS instance in Singapore. Change `regions` in `vercel.json` if the database lives elsewhere.
 
+## Authentication modes
+
+Authentication is selected with one variable:
+
+| `AUTH_ENABLED` value | Behavior |
+| --- | --- |
+| `false` or unset | Original unsecured `hackathon-demo` workspace |
+| `local` | Local name/email/password registration with PostgreSQL-backed cookie sessions |
+| `auth0` | Auth0 Universal Login and bearer-protected API |
+
+Local mode requires no external service. Run the checked-in database migration, set `AUTH_ENABLED=local`, and optionally set `BETTER_AUTH_SECRET`. Development has a local-only fallback secret; Vercel/production requires a generated secret. `FRONTEND_URL` is the reusable canonical browser origin and defaults to `http://localhost:4200` locally or the detected Vercel URL when deployed. Registration automatically signs the user in. Email verification and password-reset email are intentionally not configured in the starter.
+
+To use Auth0 instead:
+
+1. Create an Auth0 **Single Page Application**.
+2. Add `http://localhost:4200` and `https://hackathon-framework.vercel.app` to Allowed Callback URLs, Allowed Logout URLs, and Allowed Web Origins.
+3. Create an Auth0 API and choose an identifier such as `https://hackathon-framework-api`.
+4. Set the variables below locally and in Vercel, then redeploy.
+
+| Variable | Auth0 mode | Purpose |
+| --- | --- | --- |
+| `AUTH_ENABLED` | Yes | Set to `auth0` |
+| `AUTH0_DOMAIN` | Yes | Auth0 tenant or custom domain without a path |
+| `AUTH0_CLIENT_ID` | Yes | Single Page Application client ID; this is public browser configuration |
+| `AUTH0_AUDIENCE` | Yes | Exact Auth0 API identifier used as the access-token audience |
+
+In either authenticated mode, data is isolated using a stable hash of the verified user ID and `x-workspace-id` is ignored. The `/api/health` and `/api/auth-config` endpoints remain public.
+
 ## Vercel deployment
 
 Import this repository as one Vercel project with the repository root as the project root. The checked-in configuration:
@@ -80,6 +109,12 @@ Set these environment variables for Preview and Production:
 | `PGSSLMODE` | Yes | Use `require` for RDS |
 | `PG_POOL_MAX` | No | Per-function pool size; defaults to 5 |
 | `CORS_ORIGIN` | No | Only needed when the API is called from another origin |
+| `AUTH_ENABLED` | No | `false`, `local`, or `auth0`; defaults to `false` |
+| `BETTER_AUTH_SECRET` | Local auth production | Cookie/session signing secret; generate with `openssl rand -base64 32` |
+| `FRONTEND_URL` | No | Canonical public Angular origin used by auth and other integrations |
+| `AUTH0_DOMAIN` | Auth0 use | Auth0 tenant or custom domain |
+| `AUTH0_CLIENT_ID` | Auth0 use | Auth0 SPA client ID |
+| `AUTH0_AUDIENCE` | Auth0 use | Auth0 API identifier/audience |
 | `ANTHROPIC_API_KEY` | No | Enables OCR for scanned PDFs and images |
 | `ANTHROPIC_OCR_MODEL` | No | OCR-capable model override |
 | `LLM_PROVIDER` | Bedrock use | Set to `bedrock` |
@@ -99,6 +134,8 @@ Run migrations before opening the deployed application. Migrations are intention
 | Method | Route | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/health` | Database and vector contract health |
+| `GET` | `/api/auth-config` | Public authentication-mode bootstrap configuration |
+| `ALL` | `/api/auth/*` | Better Auth local registration and session endpoints in local mode |
 | `GET` | `/api/dashboard` | Workspace counts |
 | `GET` | `/api/conversations` | Previous sessions |
 | `GET` | `/api/conversations/:id` | Resume a session |
@@ -112,7 +149,7 @@ Run migrations before opening the deployed application. Migrations are intention
 | `POST` | `/api/documents/:id/process` | Process or retry an ingested file |
 | `DELETE` | `/api/documents/:id` | Remove a file and its chunks |
 
-Every data query is scoped with `x-workspace-id`; the frontend currently sends `hackathon-demo`. Replace this demo header with verified identity and authorization before accepting untrusted users.
+With authentication disabled, every data query is scoped with `x-workspace-id` and the frontend sends `hackathon-demo`. In local or Auth0 mode, that header is ignored and the verified user determines the workspace.
 
 ## Where to customize
 
@@ -126,7 +163,7 @@ Every data query is scoped with `x-workspace-id`; the frontend currently sends `
 
 ## Production hardening checklist
 
-- Add authentication and derive `workspace_id` from the authenticated principal, not a browser-controlled header.
+- Enable local or Auth0 authentication before accepting untrusted users.
 - Move large raw uploads to object storage with signed upload URLs.
 - Add a durable queue for long-running OCR and indexing jobs.
 - Add malware scanning, MIME signature validation, rate limits, and per-workspace quotas.

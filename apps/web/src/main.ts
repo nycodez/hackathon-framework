@@ -1,6 +1,8 @@
 import { bootstrapApplication } from '@angular/platform-browser'
 import { AppComponent } from './app/app.component'
-import { appConfig } from './app/app.config'
+import { createAppConfig } from './app/app.config'
+import { loadAuthConfig } from './app/core/auth-config'
 
-bootstrapApplication(AppComponent, appConfig).catch((error: unknown) => console.error(error))
-
+loadAuthConfig()
+  .then((authConfig) => bootstrapApplication(AppComponent, createAppConfig(authConfig)))
+  .catch((error: unknown) => console.error(error))

@@ -13,6 +13,14 @@ export interface ApiEnvelope<T> {
   errors?: Array<{ rule: string; field: string; message: string }>
 }
 
+export interface PublicAuthConfig {
+  mode: 'off' | 'local' | 'auth0'
+  enabled: boolean
+  domain: string
+  clientId: string
+  audience: string
+}
+
 export interface HealthSummary {
   service: string
   status: 'ok' | 'degraded'

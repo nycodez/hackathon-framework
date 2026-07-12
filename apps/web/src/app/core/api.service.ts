@@ -79,8 +79,8 @@ export class ApiService {
     return `/api/documents/${encodeURIComponent(id)}/raw`
   }
 
-  documentText(id: string): Observable<string> {
-    return this.http.get(this.documentRawUrl(id), { headers: this.headers, responseType: 'text' })
+  documentBlob(id: string): Observable<Blob> {
+    return this.http.get(this.documentRawUrl(id), { headers: this.headers, responseType: 'blob' })
   }
 
   deleteDocument(id: string): Observable<void> {

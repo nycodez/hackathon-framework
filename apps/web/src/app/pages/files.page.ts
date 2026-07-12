@@ -4,7 +4,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop'
 import { DomSanitizer, type SafeResourceUrl } from '@angular/platform-browser'
 import { ActivatedRoute, Router } from '@angular/router'
 import type { KnowledgeDocument, LibraryListing } from '@hackathon/shared'
-import { distinctUntilChanged, finalize, map, switchMap } from 'rxjs'
+import { distinctUntilChanged, finalize, from, map, of, switchMap } from 'rxjs'
 import { ApiService } from '../core/api.service'
 import { MarkdownPipe } from '../core/markdown.pipe'
 
@@ -121,7 +121,7 @@ interface DocumentPreview {
             } @else if (filePreview.kind === 'text') {
               <pre>{{ previewText() }}</pre>
             } @else {
-              <div class="preview-state"><p>This file type opens in the browser instead of the inline viewer.</p><a class="button primary" [href]="filePreview.url" target="_blank" rel="noopener">Open file</a></div>
+              <div class="preview-state"><p>This file type can be downloaded but does not have an inline viewer.</p><a class="button primary" [href]="filePreview.url" [download]="filePreview.document.name">Download file</a></div>
             }
           </div>
         </section>
@@ -137,6 +137,7 @@ export class FilesPage implements OnInit {
   private readonly router = inject(Router)
   private readonly destroyRef = inject(DestroyRef)
   private readonly sanitizer = inject(DomSanitizer)
+  private previewObjectUrl: string | null = null
   protected readonly listing = signal<LibraryListing>(emptyListing)
   protected readonly currentFolderId = signal<string | null>(null)
   protected readonly loading = signal(true)
@@ -151,6 +152,10 @@ export class FilesPage implements OnInit {
   protected readonly previewLoading = signal(false)
   protected readonly previewError = signal('')
   protected readonly hasItems = computed(() => Boolean(this.listing().folders.length || this.listing().documents.length))
+
+  constructor() {
+    this.destroyRef.onDestroy(() => this.revokePreviewObjectUrl())
+  }
 
   ngOnInit(): void {
     this.route.queryParamMap.pipe(
@@ -244,26 +249,39 @@ export class FilesPage implements OnInit {
 
   protected openPreview(document: KnowledgeDocument): void {
     const kind = this.previewKind(document)
-    const url = this.api.documentRawUrl(document.id)
+    this.revokePreviewObjectUrl()
     this.previewText.set('')
     this.previewError.set('')
-    this.previewLoading.set(kind === 'markdown' || kind === 'text')
+    this.previewLoading.set(true)
     this.preview.set({
       document,
       kind,
-      url,
-      trustedUrl: kind === 'pdf' ? this.sanitizer.bypassSecurityTrustResourceUrl(url) : null,
+      url: '',
+      trustedUrl: null,
     })
 
-    if (kind !== 'markdown' && kind !== 'text') return
-    this.api.documentText(document.id).pipe(
+    this.api.documentBlob(document.id).pipe(
+      switchMap((blob) => kind === 'markdown' || kind === 'text'
+        ? from(blob.text()).pipe(map((content) => ({ blob, content })))
+        : of({ blob, content: '' })),
       takeUntilDestroyed(this.destroyRef),
       finalize(() => {
         if (this.preview()?.document.id === document.id) this.previewLoading.set(false)
       })
     ).subscribe({
-      next: (content) => {
-        if (this.preview()?.document.id === document.id) this.previewText.set(content)
+      next: ({ blob, content }) => {
+        if (this.preview()?.document.id !== document.id) return
+        if (kind === 'markdown' || kind === 'text') {
+          this.previewText.set(content)
+          return
+        }
+        const url = URL.createObjectURL(blob)
+        this.previewObjectUrl = url
+        this.preview.update((current) => current?.document.id === document.id ? {
+          ...current,
+          url,
+          trustedUrl: kind === 'pdf' ? this.sanitizer.bypassSecurityTrustResourceUrl(url) : null,
+        } : current)
       },
       error: (error: unknown) => {
         if (this.preview()?.document.id === document.id) this.previewError.set(this.api.message(error))
@@ -272,6 +290,7 @@ export class FilesPage implements OnInit {
   }
 
   protected closePreview(): void {
+    this.revokePreviewObjectUrl()
     this.preview.set(null)
     this.previewText.set('')
     this.previewLoading.set(false)
@@ -307,5 +326,11 @@ export class FilesPage implements OnInit {
     if (mimeType === 'text/markdown' || extension === 'md' || extension === 'markdown') return 'markdown'
     if (mimeType.startsWith('text/') || ['application/json', 'application/xml'].includes(mimeType)) return 'text'
     return 'unsupported'
+  }
+
+  private revokePreviewObjectUrl(): void {
+    if (!this.previewObjectUrl) return
+    URL.revokeObjectURL(this.previewObjectUrl)
+    this.previewObjectUrl = null
   }
 }
