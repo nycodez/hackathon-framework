@@ -67,8 +67,15 @@ router.get('/dashboard', asyncRoute(async (req, res) => {
     `SELECT
        (SELECT count(*)::int FROM knowledge_documents WHERE workspace_id = $1) AS documents,
        (SELECT count(*)::int FROM knowledge_documents WHERE workspace_id = $1 AND status = 'ready') AS ready_documents,
-       (SELECT count(*)::int FROM conversation_sessions WHERE workspace_id = $1) AS conversations,
-       (SELECT count(*)::int FROM conversation_messages WHERE workspace_id = $1) AS messages`,
+       (SELECT count(*)::int
+        FROM conversation_sessions
+        WHERE workspace_id = $1 AND deleted_at IS NULL) AS conversations,
+       (SELECT count(*)::int
+        FROM conversation_messages messages
+        JOIN conversation_sessions sessions ON sessions.id = messages.conversation_id
+        WHERE messages.workspace_id = $1
+          AND sessions.workspace_id = $1
+          AND sessions.deleted_at IS NULL) AS messages`,
     [workspace]
   )
   const row = result.rows[0]
@@ -95,7 +102,7 @@ router.get('/conversations/:id', asyncRoute(async (req, res) => {
 router.delete('/conversations/:id', asyncRoute(async (req, res) => {
   const parsed = idSchema.safeParse(req.params.id)
   if (!parsed.success) return res.status(400).json(validationError('id', 'A valid conversation ID is required'))
-  const removed = await conversations.remove(workspaceId(req), parsed.data)
+  const removed = await conversations.remove(workspaceId(req), parsed.data, actorId(req))
   if (!removed) return res.status(404).json(notFound('conversation'))
   return res.status(204).send()
 }))

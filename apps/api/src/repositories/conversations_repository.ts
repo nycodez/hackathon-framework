@@ -1,7 +1,7 @@
 import type { ChatMessage, Citation, Conversation, ConversationSummary, DecisionTraceEvent } from '@hackathon/shared'
 import type { QueryResultRow } from 'pg'
 import { query, transaction } from '../db/pool.js'
-import { logRecordCreated } from '../services/record_log_service.js'
+import { logActivity, logRecordCreated } from '../services/record_log_service.js'
 
 interface ConversationRow extends QueryResultRow {
   id: string
@@ -33,7 +33,7 @@ export default class ConversationsRepository {
               ) AS preview
        FROM conversation_sessions s
        LEFT JOIN conversation_messages m ON m.conversation_id = s.id
-       WHERE s.workspace_id = $1
+       WHERE s.workspace_id = $1 AND s.deleted_at IS NULL
        GROUP BY s.id
        ORDER BY s.updated_at DESC`,
       [workspaceId]
@@ -47,7 +47,7 @@ export default class ConversationsRepository {
               coalesce((array_agg(m.content ORDER BY m.created_at DESC))[1], '') AS preview
        FROM conversation_sessions s
        LEFT JOIN conversation_messages m ON m.conversation_id = s.id
-       WHERE s.workspace_id = $1 AND s.id = $2
+       WHERE s.workspace_id = $1 AND s.id = $2 AND s.deleted_at IS NULL
        GROUP BY s.id`,
       [workspaceId, id]
     )
@@ -83,12 +83,34 @@ export default class ConversationsRepository {
     })
   }
 
-  async remove(workspaceId: string, id: string): Promise<boolean> {
-    const result = await query(
-      'DELETE FROM conversation_sessions WHERE workspace_id = $1 AND id = $2',
-      [workspaceId, id]
-    )
-    return result.rowCount === 1
+  async remove(workspaceId: string, id: string, actorId: string | null = null): Promise<boolean> {
+    return transaction(async (client) => {
+      const result = await client.query<{ id: string; title: string }>(
+        `UPDATE conversation_sessions
+         SET deleted_at = now(), updated_at = now()
+         WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NULL
+         RETURNING id, title`,
+        [workspaceId, id]
+      )
+      const conversation = result.rows[0]
+      if (conversation) {
+        await logActivity({
+          workspaceId,
+          actorId,
+          action: 'deleted',
+          recordType: 'conversation',
+          recordId: conversation.id,
+          metadata: { title: conversation.title },
+        }, client)
+        return true
+      }
+
+      const existing = await client.query(
+        'SELECT id FROM conversation_sessions WHERE workspace_id = $1 AND id = $2',
+        [workspaceId, id]
+      )
+      return Boolean(existing.rowCount)
+    })
   }
 
   async addExchange(
@@ -101,7 +123,9 @@ export default class ConversationsRepository {
   ): Promise<ChatMessage> {
     return transaction(async (client) => {
       const ownsSession = await client.query(
-        'SELECT id FROM conversation_sessions WHERE workspace_id = $1 AND id = $2 FOR UPDATE',
+        `SELECT id FROM conversation_sessions
+         WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NULL
+         FOR UPDATE`,
         [workspaceId, conversationId]
       )
       if (!ownsSession.rowCount) throw new Error('Conversation not found')

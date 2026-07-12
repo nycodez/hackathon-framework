@@ -9,7 +9,7 @@ export interface RecordCreatedLog {
   metadata?: Record<string, unknown>
 }
 
-export type ActivityAction = 'created' | 'registered' | 'login_succeeded' | 'login_failed' | 'logged_out'
+export type ActivityAction = 'created' | 'deleted' | 'registered' | 'login_succeeded' | 'login_failed' | 'logged_out'
 
 export interface ActivityLog extends Omit<RecordCreatedLog, 'workspaceId'> {
   action: ActivityAction

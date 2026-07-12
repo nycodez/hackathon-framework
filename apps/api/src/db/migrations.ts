@@ -216,6 +216,24 @@ export const migrations = [
       ALTER TABLE record_activity_log
         ADD CONSTRAINT record_activity_log_action_check CHECK (
           action IN ('created', 'registered', 'login_succeeded', 'login_failed', 'logged_out')
+      );
+    `,
+  },
+  {
+    id: '007_conversation_soft_delete',
+    sql: `
+      ALTER TABLE conversation_sessions
+        ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+
+      CREATE INDEX IF NOT EXISTS conversation_sessions_active_workspace_updated_idx
+        ON conversation_sessions (workspace_id, updated_at DESC)
+        WHERE deleted_at IS NULL;
+
+      ALTER TABLE record_activity_log
+        DROP CONSTRAINT IF EXISTS record_activity_log_action_check;
+      ALTER TABLE record_activity_log
+        ADD CONSTRAINT record_activity_log_action_check CHECK (
+          action IN ('created', 'deleted', 'registered', 'login_succeeded', 'login_failed', 'logged_out')
         );
     `,
   },

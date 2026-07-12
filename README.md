@@ -12,7 +12,7 @@ A clean, highly opinionated Angular + Express starter for document-grounded hack
 - Small-file upload with visible ingestion, OCR, summarization, chunking, and vectorization states
 - Express API packaged as a Vercel Function under `/api`
 - Selectable disabled, local email/password, or Auth0 authentication
-- Workspace-scoped activity log for record creation and local authentication events
+- Workspace-scoped activity log for record lifecycle and local authentication events
 - PostgreSQL migrations with workspace scoping, full-text search, `vector(1024)`, and HNSW indexing
 - Dependency-free feature-hash embeddings, so retrieval works before an external embedding provider is added
 - Optional Claude OCR for scanned PDFs and images
@@ -47,7 +47,7 @@ A clean, highly opinionated Angular + Express starter for document-grounded hack
 
 ### Durable data and practical operations
 
-- Conversations and messages are stored durably, can be resumed from Results, and can be deleted with their dependent data.
+- Conversations and messages are stored durably, can be resumed from Results, and use recoverable soft deletion.
 - Nested, alphabetized Library folders support breadcrumbs, folder-aware uploads, previews, and recursive deletion.
 - PostgreSQL provides one durable source of truth for documents, chunks, vectors, conversations, folders, authentication, and activity history.
 - Explicit, transactional migrations avoid hidden schema changes during application startup or Vercel builds.
@@ -222,7 +222,7 @@ HTTP status codes remain authoritative. Use stable, machine-readable `rule` valu
 | `GET` | `/api/dashboard` | Workspace counts |
 | `GET` | `/api/conversations` | Previous sessions |
 | `GET` | `/api/conversations/:id` | Resume a session |
-| `DELETE` | `/api/conversations/:id` | Delete a session and its messages |
+| `DELETE` | `/api/conversations/:id` | Soft-delete a conversation and hide its messages |
 | `POST` | `/api/query` | Search the corpus and store a grounded exchange |
 | `GET` | `/api/library` | Current folder, breadcrumbs, child folders, and documents |
 | `POST` | `/api/library/folders` | Create a folder in the current workspace location |
@@ -247,7 +247,7 @@ With authentication disabled, every data query is scoped with `x-workspace-id` a
 
 ## Activity logging
 
-User-facing resource creation and local authentication events are recorded in `record_activity_log`. Conversations, folders, and new document uploads are wired by default; duplicate document uploads do not create a second creation event. Local auth records registration, successful login, failed login, and logout without storing passwords, tokens, cookies, or submitted email addresses. To log a new record from a repository:
+User-facing record lifecycle and local authentication events are recorded in `record_activity_log`. Conversation, folder, and new document creation are wired by default, as is conversation deletion; duplicate document uploads do not create a second creation event. Local auth records registration, successful login, failed login, and logout without storing passwords, tokens, cookies, or submitted email addresses. To log a new record from a repository:
 
 ```ts
 await logRecordCreated({
@@ -260,6 +260,10 @@ await logRecordCreated({
 ```
 
 Pass the current transaction client whenever possible so the record and log entry commit or roll back together. Keep secrets, raw file contents, and other sensitive values out of metadata.
+
+## Deletion conventions
+
+Deletion is permanent by default. Conversations are the sole exception: deleting one sets `conversation_sessions.deleted_at`, hides the conversation and its messages from normal reads and dashboard counts, and records a `deleted` activity event. Messages retain no duplicate deletion column and remain attached to the conversation for future restoration or permanent purging. Documents, chunks, ingestion events, Library folders, authentication records, and temporary security data continue to use hard deletion and existing cascade behavior.
 
 ## Production hardening checklist
 
