@@ -291,12 +291,23 @@ app-auth-controls { display: contents; }
 .preview-state.error { color: #a12d2d; }
 .preview-state p { margin: 0; }
 
-@media (max-width: 960px) {
-  .app-shell { grid-template-columns: 78px minmax(0, 1fr); }
-  .sidebar { padding-inline: 12px; }
+@media (max-width: 1080px) {
+  .app-shell { grid-template-columns: 68px minmax(0, 1fr); }
+  .sidebar { padding-inline: 8px; }
   .brand { justify-content: center; padding-inline: 0; }
   .brand-copy, .sidebar-foot > span:last-child, .auth-copy, .profile-chevron { display: none; }
-  .sidebar nav a { padding: 0; justify-content: center; font-size: 0; }
+  .app-shell .sidebar nav a { min-width: 0; padding: 0; overflow: hidden; justify-content: center; font-size: 0; }
+  .app-shell .sidebar nav a > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
   .sidebar nav a .nav-icon { width: 21px; height: 21px; }
   .sidebar-foot { justify-content: center; }
   .auth-foot { display: flex; justify-content: center; }
@@ -314,7 +325,16 @@ app-auth-controls { display: contents; }
   .sidebar { position: fixed; inset: auto 0 0 0; width: 100%; height: 64px; padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); border: 0; border-top: 1px solid var(--sidebar-border); display: block; }
   .brand, .sidebar-foot { display: none; }
   .sidebar nav { height: 100%; display: flex; }
-  .sidebar nav a, .sidebar nav a:not(.active) { min-height: 46px; padding: 4px; display: flex; flex-direction: column; gap: 2px; font-size: 9px; }
+  .app-shell .sidebar nav a, .app-shell .sidebar nav a:not(.active) { min-height: 46px; padding: 4px; overflow: visible; display: flex; flex-direction: column; gap: 2px; font-size: 9px; }
+  .app-shell .sidebar nav a > span {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip-path: none;
+    white-space: normal;
+  }
   .sidebar nav a .nav-icon { width: 19px; height: 19px; }
   .sidebar nav a { flex: 1; }
   .mobile-profile { min-height: 46px; padding: 4px; border: 0; border-radius: 12px; color: var(--sidebar-text); background: transparent; display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer; font-size: 9px; }
